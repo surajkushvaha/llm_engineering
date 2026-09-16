@@ -1,3 +1,5 @@
+import os
+
 import networkx as nx
 import matplotlib.pyplot as plt
 from typing import List, Dict
@@ -10,7 +12,10 @@ load_dotenv(override=True)
 
 class TokenPredictor:
     def __init__(self, model_name: str):
-        self.client = OpenAI()
+        self.client = OpenAI(
+            base_url=os.getenv("AI_BASE_URL"),
+            api_key=os.getenv("OLLAMA_API_KEY")
+        )
         self.messages = []
         self.predictions = []
         self.model_name = model_name
@@ -35,26 +40,27 @@ class TokenPredictor:
         for chunk in response:
             if chunk.choices[0].delta.content:
                 token = chunk.choices[0].delta.content
-                logprobs = chunk.choices[0].logprobs.content[0].top_logprobs
-                logprob_dict = {item.token: item.logprob for item in logprobs}
+                if chunk.choices[0].logprobs and chunk.choices[0].logprobs.content:
+                    logprobs = chunk.choices[0].logprobs.content[0].top_logprobs
+                    logprob_dict = {item.token: item.logprob for item in logprobs}
 
-                # Get top predicted token and probability
-                top_token = token
-                top_prob = logprob_dict[token]
+                    # Get top predicted token and probability
+                    top_token = token
+                    top_prob = logprob_dict[token]
 
-                # Get alternative predictions
-                alternatives = []
-                for alt_token, alt_prob in logprob_dict.items():
-                    if alt_token != token:
-                        alternatives.append((alt_token, math.exp(alt_prob)))
-                alternatives.sort(key=lambda x: x[1], reverse=True)
+                    # Get alternative predictions
+                    alternatives = []
+                    for alt_token, alt_prob in logprob_dict.items():
+                        if alt_token != token:
+                            alternatives.append((alt_token, math.exp(alt_prob)))
+                    alternatives.sort(key=lambda x: x[1], reverse=True)
 
-                prediction = {
-                    "token": top_token,
-                    "probability": math.exp(top_prob),
-                    "alternatives": alternatives[:2],  # Keep top 2 alternatives
-                }
-                predictions.append(prediction)
+                    prediction = {
+                        "token": top_token,
+                        "probability": math.exp(top_prob),
+                        "alternatives": alternatives[:2],  # Keep top 2 alternatives
+                    }
+                    predictions.append(prediction)
 
         return predictions
 
@@ -84,7 +90,6 @@ def create_token_graph(model_name: str, predictions: List[Dict]) -> nx.DiGraph:
             G.add_edge(f"t{i - 1}", token_id)
 
     # Then add alternative nodes with a different y-position
-    last_id = None
     for i, pred in enumerate(predictions):
         parent_token = "START" if i == 0 else f"t{i - 1}"
 
@@ -97,8 +102,9 @@ def create_token_graph(model_name: str, predictions: List[Dict]) -> nx.DiGraph:
 
             # Add edge from main token to its alternatives only
             G.add_edge(parent_token, alt_id)
-            last_id = parent_token
 
+    # Connect END to the last main token in the sequence (or START if there were no predictions)
+    last_id = f"t{len(predictions) - 1}" if predictions else "START"
     G.add_node("END", token="END", prob="100%", color="red", size=6000)
     G.add_edge(last_id, "END")
 
@@ -155,3 +161,14 @@ def visualize_predictions(G: nx.DiGraph, figsize=(14, 80)):
 
     # plt.tight_layout()
     return plt
+
+
+
+message = "In one sentence, describe the color orange to someone who has never been able to see"
+model_name = "gpt-oss:20b"
+
+predictor = TokenPredictor(model_name)
+predictions = predictor.predict_tokens(message)
+G = create_token_graph(model_name, predictions)
+plt = visualize_predictions(G)
+plt.show()

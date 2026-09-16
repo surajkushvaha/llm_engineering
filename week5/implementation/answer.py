@@ -6,11 +6,13 @@ from langchain_core.messages import SystemMessage, HumanMessage, convert_to_mess
 from langchain_core.documents import Document
 
 from dotenv import load_dotenv
-
+import os
 
 load_dotenv(override=True)
 
-MODEL = "gpt-4.1-nano"
+MODEL = "gpt-oss:20b"
+AI_BASE_URL= os.environ.get("AI_BASE_URL")
+AI_KEY = os.environ.get("OPENAI_API_KEY")
 DB_NAME = str(Path(__file__).parent.parent / "vector_db")
 
 # embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
@@ -28,7 +30,7 @@ Context:
 
 vectorstore = Chroma(persist_directory=DB_NAME, embedding_function=embeddings)
 retriever = vectorstore.as_retriever()
-llm = ChatOpenAI(temperature=0, model_name=MODEL)
+llm = ChatOpenAI(temperature=0, model_name=MODEL,base_url=AI_BASE_URL, api_key=AI_KEY)
 
 
 def fetch_context(question: str) -> list[Document]:

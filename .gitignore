@@ -1,5 +1,8 @@
-# Github's default gitignore for Python
+practice/distillation/*.pt
+practice/distillation/distill_data.jsonl
 
+# Github's default gitignore for Python
+Python/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
